@@ -1,381 +1,431 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
+import { useAuth } from "@/hooks/use-auth"
+import { createClient } from "@/lib/supabase/client"
+import PublisherLayout from "@/components/publisher/publisher-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  DollarSign,
-  TrendingUp,
-  CalendarIcon,
-  Download,
-  Search,
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { 
+  DollarSign, 
+  Search, 
+  Calendar,
   CheckCircle,
   Clock,
   AlertCircle,
-  CreditCard,
+  TrendingUp,
+  Wallet,
+  AlertTriangle,
+  Mail,
+  ExternalLink
 } from "lucide-react"
-import PublisherLayout from "@/components/publisher/publisher-layout"
-import { useState } from "react"
+import Link from "next/link"
 
-// Mock data
-const payoutSummary = {
-  totalEarned: 18750,
-  totalPaidOut: 15200,
-  pendingBalance: 3550,
-  nextPayoutDate: "2024-01-15",
-  nextPayoutAmount: 1200,
+interface Payout {
+  id: string
+  order_id: string
+  payment_id: string
+  amount: number
+  payout_status: string
+  publisher_paypal_email: string
+  paypal_payout_batch_id: string | null
+  paypal_payout_item_id: string | null
+  initiated_at: string | null
+  completed_at: string | null
+  failure_reason: string | null
+  created_at: string
+  order: {
+    title: string
+    total_amount: number
+    status: string
+    website: {
+      name: string
+      url: string
+    }
+  }
+  payment: {
+    invoice_status: string
+    paid_at: string | null
+    total_amount: number
+    platform_fee: number
+  }
 }
 
-const payouts = [
-  {
-    id: "PAY-001",
-    amount: 1250,
-    status: "paid",
-    payoutDate: "2024-01-01",
-    ordersIncluded: ["ORD-001", "ORD-002", "ORD-003"],
-    paymentMethod: "Bank Transfer",
-    transactionId: "TXN-12345",
-  },
-  {
-    id: "PAY-002",
-    amount: 980,
-    status: "paid",
-    payoutDate: "2023-12-15",
-    ordersIncluded: ["ORD-004", "ORD-005"],
-    paymentMethod: "PayPal",
-    transactionId: "TXN-12346",
-  },
-  {
-    id: "PAY-003",
-    amount: 1450,
-    status: "processing",
-    payoutDate: "2024-01-15",
-    ordersIncluded: ["ORD-006", "ORD-007", "ORD-008"],
-    paymentMethod: "Bank Transfer",
-    transactionId: null,
-  },
-  {
-    id: "PAY-004",
-    amount: 750,
-    status: "pending",
-    payoutDate: "2024-01-30",
-    ordersIncluded: ["ORD-009"],
-    paymentMethod: "Bank Transfer",
-    transactionId: null,
-  },
-]
-
-const transactions = [
-  {
-    id: "TXN-001",
-    orderId: "ORD-001",
-    type: "order_completion",
-    amount: 135,
-    commission: 15,
-    netAmount: 120,
-    date: "2024-01-10",
-    status: "completed",
-    advertiser: "TechCorp Inc.",
-  },
-  {
-    id: "TXN-002",
-    orderId: "ORD-002",
-    type: "order_completion",
-    amount: 180,
-    commission: 20,
-    netAmount: 160,
-    date: "2024-01-09",
-    status: "completed",
-    advertiser: "Marketing Pro",
-  },
-  {
-    id: "TXN-003",
-    orderId: "ORD-003",
-    type: "order_completion",
-    amount: 158,
-    commission: 18,
-    netAmount: 140,
-    date: "2024-01-08",
-    status: "completed",
-    advertiser: "SEO Masters",
-  },
-]
-
-const statusConfig = {
-  paid: { label: "Paid", color: "bg-green-100 text-green-700", icon: CheckCircle },
-  processing: { label: "Processing", color: "bg-blue-100 text-blue-700", icon: Clock },
-  pending: { label: "Pending", color: "bg-orange-100 text-orange-700", icon: Clock },
-  failed: { label: "Failed", color: "bg-red-100 text-red-700", icon: AlertCircle },
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-700", icon: Clock },
+  PROCESSING: { label: "Processing", color: "bg-blue-100 text-blue-700", icon: TrendingUp },
+  SUCCESS: { label: "Paid", color: "bg-green-100 text-green-700", icon: CheckCircle },
+  FAILED: { label: "Failed", color: "bg-red-100 text-red-700", icon: AlertCircle },
 }
 
 export default function PublisherPayouts() {
-  const [activeTab, setActiveTab] = useState("payouts")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({})
+  const { user } = useAuth()
+  const supabase = createClient()
 
-  const filteredPayouts = payouts.filter((payout) => {
-    const matchesSearch = payout.id.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || payout.status === statusFilter
+  const [payouts, setPayouts] = useState<Payout[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [paypalEmail, setPaypalEmail] = useState<string | null>(null)
+
+  // Stats
+  const [stats, setStats] = useState({
+    totalEarned: 0,
+    pendingAmount: 0,
+    processingAmount: 0,
+    totalPayouts: 0
+  })
+
+  useEffect(() => {
+    if (user) {
+      fetchPaypalEmail()
+      fetchPayouts()
+    }
+  }, [user])
+
+  const fetchPaypalEmail = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('paypal_email')
+      .eq('id', user?.id)
+      .single()
+
+    setPaypalEmail(data?.paypal_email || null)
+  }
+
+  const fetchPayouts = async () => {
+    try {
+      setLoading(true)
+
+      const { data, error } = await supabase
+        .from('payouts')
+        .select(`
+          *,
+          order:orders!inner(
+            title,
+            total_amount,
+            status,
+            publisher_id,
+            website:websites(name, url)
+          ),
+          payment:payments(
+            invoice_status,
+            paid_at,
+            total_amount,
+            platform_fee
+          )
+        `)
+        .eq('publisher_id', user?.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const payoutsData = data.map(p => ({
+        ...p,
+        payment: p.payment?.[0] || p.payment
+      })) as any[]
+      
+      setPayouts(payoutsData)
+
+      // Calculate stats
+      const totalEarned = payoutsData
+        .filter(p => p.payout_status === 'SUCCESS')
+        .reduce((sum, p) => sum + parseFloat(p.amount), 0)
+
+      const pendingAmount = payoutsData
+        .filter(p => p.payout_status === 'PENDING')
+        .reduce((sum, p) => sum + parseFloat(p.amount), 0)
+
+      const processingAmount = payoutsData
+        .filter(p => p.payout_status === 'PROCESSING')
+        .reduce((sum, p) => sum + parseFloat(p.amount), 0)
+
+      setStats({
+        totalEarned,
+        pendingAmount,
+        processingAmount,
+        totalPayouts: payoutsData.length
+      })
+
+    } catch (error) {
+      console.error('Error fetching payouts:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPayouts = payouts.filter(payout => {
+    const matchesSearch = 
+      payout.order.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payout.order.website.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payout.publisher_paypal_email.toLowerCase().includes(searchQuery.toLowerCase())
+
+    const matchesStatus = statusFilter === "all" || payout.payout_status === statusFilter
+
     return matchesSearch && matchesStatus
   })
 
-  const filteredTransactions = transactions.filter((transaction) => {
-    const matchesSearch =
-      transaction.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.advertiser.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesSearch
-  })
+  if (loading) {
+    return (
+      <PublisherLayout>
+        <div className="space-y-6">
+          <Skeleton className="h-24 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
+          </div>
+        </div>
+      </PublisherLayout>
+    )
+  }
 
   return (
     <PublisherLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center space-x-2">
-            <DollarSign className="w-6 h-6 text-teal-600" />
-            <span>Payout History</span>
-          </h1>
-          <p className="text-slate-600">Track your earnings, payouts, and transaction history</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Payouts</h1>
+          <p className="text-slate-600">Track your earnings and payment history</p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* PayPal Email Warning */}
+        {!paypalEmail && (
+          <Alert className="border-orange-200 bg-orange-50">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-900">
+              <div className="font-medium mb-1">PayPal Email Not Set</div>
+              <p className="text-sm mb-2">You need to add your PayPal email to receive payouts.</p>
+              <Link href="/publisher/settings">
+                <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
+                  <Mail className="w-4 h-4 mr-2" />
+                  Add PayPal Email
+                </Button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
-              <TrendingUp className="h-4 w-4 text-teal-600" />
+              <Wallet className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${payoutSummary.totalEarned.toLocaleString()}</div>
-              <p className="text-xs text-slate-500">Lifetime earnings</p>
+              <div className="text-2xl font-bold">${stats.totalEarned.toFixed(2)}</div>
+              <p className="text-xs text-slate-500">Received in your PayPal</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Paid Out</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium">Processing</CardTitle>
+              <TrendingUp className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">${payoutSummary.totalPaidOut.toLocaleString()}</div>
-              <p className="text-xs text-slate-500">Successfully transferred</p>
+              <div className="text-2xl font-bold">${stats.processingAmount.toFixed(2)}</div>
+              <p className="text-xs text-slate-500">Being sent to you</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Balance</CardTitle>
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
               <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">${payoutSummary.pendingBalance.toLocaleString()}</div>
-              <p className="text-xs text-slate-500">Awaiting payout</p>
+              <div className="text-2xl font-bold">${stats.pendingAmount.toFixed(2)}</div>
+              <p className="text-xs text-slate-500">Awaiting approval</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Next Payout</CardTitle>
-              <CalendarIcon className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium">Total Payouts</CardTitle>
+              <DollarSign className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">${payoutSummary.nextPayoutAmount.toLocaleString()}</div>
-              <p className="text-xs text-slate-500">{payoutSummary.nextPayoutDate}</p>
+              <div className="text-2xl font-bold">{stats.totalPayouts}</div>
+              <p className="text-xs text-slate-500">All time</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabs */}
-        <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
-          <Button
-            variant={activeTab === "payouts" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("payouts")}
-            className={activeTab === "payouts" ? "bg-white shadow-sm" : ""}
-          >
-            Payouts
-          </Button>
-          <Button
-            variant={activeTab === "transactions" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("transactions")}
-            className={activeTab === "transactions" ? "bg-white shadow-sm" : ""}
-          >
-            Transactions
-          </Button>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder={activeTab === "payouts" ? "Search payouts..." : "Search by order ID or advertiser..."}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              {activeTab === "payouts" && (
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-48">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-              <Button variant="outline" className="sm:w-auto bg-transparent">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Content */}
-        {activeTab === "payouts" ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Payout History ({filteredPayouts.length})</CardTitle>
-              <CardDescription>Your payout history and status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Payout ID</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Payout Date</TableHead>
-                      <TableHead>Payment Method</TableHead>
-                      <TableHead>Orders Included</TableHead>
-                      <TableHead>Transaction ID</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredPayouts.map((payout) => {
-                      const StatusIcon = statusConfig[payout.status as keyof typeof statusConfig].icon
-                      return (
-                        <TableRow key={payout.id}>
-                          <TableCell className="font-medium">{payout.id}</TableCell>
-                          <TableCell>
-                            <span className="font-semibold">${payout.amount}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={statusConfig[payout.status as keyof typeof statusConfig].color}>
-                              <StatusIcon className="w-3 h-3 mr-1" />
-                              {statusConfig[payout.status as keyof typeof statusConfig].label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{payout.payoutDate}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <CreditCard className="w-4 h-4 text-slate-400" />
-                              <span>{payout.paymentMethod}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {payout.ordersIncluded.map((orderId) => (
-                                <Badge key={orderId} variant="outline" className="text-xs bg-transparent">
-                                  {orderId}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {payout.transactionId ? (
-                              <span className="text-sm font-mono">{payout.transactionId}</span>
-                            ) : (
-                              <span className="text-sm text-slate-400">-</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {filteredPayouts.length === 0 && (
-                <div className="text-center py-12">
-                  <DollarSign className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-slate-900 mb-2">No payouts found</h3>
-                  <p className="text-slate-600">
-                    {searchTerm || statusFilter !== "all"
-                      ? "Try adjusting your filters"
-                      : "Payouts will appear here once orders are completed"}
-                  </p>
+        {/* Current PayPal Email */}
+        {paypalEmail && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">PayPal Email</p>
+                    <p className="text-sm text-blue-700">{paypalEmail}</p>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Transaction History ({filteredTransactions.length})</CardTitle>
-              <CardDescription>Detailed breakdown of your earnings by order</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Order ID</TableHead>
-                      <TableHead>Advertiser</TableHead>
-                      <TableHead>Gross Amount</TableHead>
-                      <TableHead>Commission</TableHead>
-                      <TableHead>Net Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">{transaction.orderId}</TableCell>
-                        <TableCell>{transaction.advertiser}</TableCell>
-                        <TableCell>${transaction.amount}</TableCell>
-                        <TableCell className="text-red-600">-${transaction.commission}</TableCell>
-                        <TableCell className="font-semibold text-green-600">${transaction.netAmount}</TableCell>
-                        <TableCell>{transaction.date}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-green-100 text-green-700">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Completed
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <Link href="/publisher/settings">
+                  <Button variant="outline" size="sm">
+                    Update
+                  </Button>
+                </Link>
               </div>
-
-              {filteredTransactions.length === 0 && (
-                <div className="text-center py-12">
-                  <TrendingUp className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-slate-900 mb-2">No transactions found</h3>
-                  <p className="text-slate-600">
-                    {searchTerm ? "Try adjusting your search" : "Transactions will appear here as orders are completed"}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle>All Payouts</CardTitle>
+            <CardDescription>View your complete payout history</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search by order, website..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="PROCESSING">Processing</SelectItem>
+                  <SelectItem value="SUCCESS">Paid</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Payouts List */}
+            <div className="space-y-4">
+              {filteredPayouts.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <Wallet className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p className="text-lg font-medium">No payouts yet</p>
+                  <p className="text-sm">Your earnings will appear here when orders are completed</p>
+                </div>
+              ) : (
+                filteredPayouts.map((payout) => {
+                  const statusInfo = statusConfig[payout.payout_status] || statusConfig.PENDING
+                  const StatusIcon = statusInfo.icon
+
+                  return (
+                    <div
+                      key={payout.id}
+                      className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-slate-900">{payout.order.title}</h3>
+                                <Badge className={statusInfo.color}>
+                                  <StatusIcon className="w-3 h-3 mr-1" />
+                                  {statusInfo.label}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-slate-600">
+                                {payout.order.website.name}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 text-sm text-slate-500">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              {payout.completed_at ? (
+                                <span>Paid: {new Date(payout.completed_at).toLocaleDateString()}</span>
+                              ) : payout.initiated_at ? (
+                                <span>Initiated: {new Date(payout.initiated_at).toLocaleDateString()}</span>
+                              ) : (
+                                <span>Created: {new Date(payout.created_at).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Mail className="w-4 h-4" />
+                              <span>{payout.publisher_paypal_email}</span>
+                            </div>
+                          </div>
+
+                          {payout.failure_reason && (
+                            <Alert className="border-red-200 bg-red-50 mt-2">
+                              <AlertCircle className="h-4 w-4 text-red-600" />
+                              <AlertDescription className="text-red-900 text-sm">
+                                <strong>Failure reason:</strong> {payout.failure_reason}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col md:items-end gap-2">
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-green-600">
+                              ${payout.amount}
+                            </div>
+                            {payout.payment && (
+                              <div className="text-xs text-slate-500">
+                                Order: ${payout.payment.total_amount} • Fee: ${payout.payment.platform_fee}
+                              </div>
+                            )}
+                          </div>
+
+                          <Link href={`/publisher/orders/${payout.order_id}`}>
+                            <Button variant="outline" size="sm">
+                              <ExternalLink className="w-4 h-4 mr-1" />
+                              View Order
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Payout Lifecycle Progress */}
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className={`flex items-center gap-1 ${payout.payment?.paid_at ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Advertiser Paid</span>
+                          </div>
+                          <div className="h-px flex-1 bg-slate-200 mx-2"></div>
+                          
+                          <div className={`flex items-center gap-1 ${payout.order.status === 'completed' || payout.order.status === 'payment_processing' || payout.order.status === 'paid' ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Work Approved</span>
+                          </div>
+                          <div className="h-px flex-1 bg-slate-200 mx-2"></div>
+                          
+                          <div className={`flex items-center gap-1 ${payout.initiated_at ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Payout Initiated</span>
+                          </div>
+                          <div className="h-px flex-1 bg-slate-200 mx-2"></div>
+                          
+                          <div className={`flex items-center gap-1 ${payout.payout_status === 'SUCCESS' ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Received</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </PublisherLayout>
   )

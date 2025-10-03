@@ -23,6 +23,7 @@ import {
   User,
   LogOut,
   LinkIcon,
+  Settings,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -39,6 +40,7 @@ const navigation = [
   { name: "Orders", href: "/publisher/orders", icon: ShoppingCart },
   { name: "Messages", href: "/publisher/messages", icon: MessageSquare },
   { name: "Payouts", href: "/publisher/payouts", icon: DollarSign },
+  { name: "Settings", href: "/publisher/settings", icon: Settings },
 ]
 
 export default function PublisherLayout({ children }: PublisherLayoutProps) {
@@ -183,14 +185,12 @@ export default function PublisherLayout({ children }: PublisherLayoutProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Bell className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
+                  <Link href="/publisher/settings">
+                    <DropdownMenuItem>
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                  </Link>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />

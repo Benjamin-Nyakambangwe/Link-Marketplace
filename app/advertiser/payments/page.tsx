@@ -1,345 +1,362 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useAuth } from "@/hooks/use-auth"
+import { createClient } from "@/lib/supabase/client"
+import AdvertiserLayout from "@/components/advertiser/advertiser-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Search, Download, CalendarIcon, CreditCard, DollarSign, TrendingUp, Receipt, Eye } from "lucide-react"
-import { format } from "date-fns"
-import AdvertiserLayout from "@/components/advertiser/advertiser-layout"
+import { Skeleton } from "@/components/ui/skeleton"
+import { 
+  DollarSign, 
+  ExternalLink, 
+  Search, 
+  Calendar,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  TrendingUp,
+  Receipt
+} from "lucide-react"
+import Link from "next/link"
 
-const transactions = [
-  {
-    id: "TXN-001",
-    orderId: "ORD-001",
-    website: "techblog.com",
-    publisher: "John Publisher",
-    service: "Guest Post",
-    amount: "$150.00",
-    fee: "$7.50",
-    total: "$157.50",
-    status: "Completed",
-    method: "Credit Card",
-    date: "2024-01-15",
-    time: "10:30 AM",
-    invoiceUrl: "#",
-  },
-  {
-    id: "TXN-002",
-    orderId: "ORD-002",
-    website: "healthnews.net",
-    publisher: "Sarah Wilson",
-    service: "Link Placement",
-    amount: "$75.00",
-    fee: "$3.75",
-    total: "$78.75",
-    status: "Completed",
-    method: "PayPal",
-    date: "2024-01-12",
-    time: "2:15 PM",
-    invoiceUrl: "#",
-  },
-  {
-    id: "TXN-003",
-    orderId: "ORD-003",
-    website: "financetips.org",
-    publisher: "Mike Johnson",
-    service: "Sponsored Content",
-    amount: "$200.00",
-    fee: "$10.00",
-    total: "$210.00",
-    status: "Pending",
-    method: "Credit Card",
-    date: "2024-01-10",
-    time: "4:45 PM",
-    invoiceUrl: "#",
-  },
-  {
-    id: "TXN-004",
-    orderId: "ORD-004",
-    website: "travelguide.com",
-    publisher: "Emma Davis",
-    service: "Guest Post",
-    amount: "$120.00",
-    fee: "$6.00",
-    total: "$126.00",
-    status: "Completed",
-    method: "Credit Card",
-    date: "2024-01-08",
-    time: "11:20 AM",
-    invoiceUrl: "#",
-  },
-  {
-    id: "TXN-005",
-    orderId: "ORD-005",
-    website: "foodblog.net",
-    publisher: "Alex Chen",
-    service: "Link Placement",
-    amount: "$90.00",
-    fee: "$4.50",
-    total: "$94.50",
-    status: "Failed",
-    method: "Credit Card",
-    date: "2024-01-05",
-    time: "3:30 PM",
-    invoiceUrl: "#",
-  },
-]
-
-const statusColors = {
-  Completed: "bg-green-100 text-green-800",
-  Pending: "bg-yellow-100 text-yellow-800",
-  Failed: "bg-red-100 text-red-800",
-  Refunded: "bg-gray-100 text-gray-800",
+interface Payment {
+  id: string
+  order_id: string
+  paypal_invoice_id: string
+  invoice_number: string
+  invoice_status: string
+  invoice_url: string | null
+  total_amount: number
+  platform_fee: number
+  publisher_amount: number
+  invoice_sent_at: string | null
+  paid_at: string | null
+  created_at: string
+  order: {
+    title: string
+    status: string
+    website: {
+      name: string
+      url: string
+    }
+  }
 }
 
-export default function PaymentHistory() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [methodFilter, setMethodFilter] = useState("all")
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({})
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  DRAFT: { label: "Draft", color: "bg-gray-100 text-gray-700", icon: Clock },
+  SENT: { label: "Invoice Sent", color: "bg-blue-100 text-blue-700", icon: Receipt },
+  PAID: { label: "Paid", color: "bg-green-100 text-green-700", icon: CheckCircle },
+  CANCELLED: { label: "Cancelled", color: "bg-red-100 text-red-700", icon: AlertCircle },
+  REFUNDED: { label: "Refunded", color: "bg-orange-100 text-orange-700", icon: AlertCircle },
+}
 
-  const filteredTransactions = transactions.filter((transaction) => {
-    const matchesSearch =
-      transaction.website.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.publisher.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || transaction.status === statusFilter
-    const matchesMethod = methodFilter === "all" || transaction.method === methodFilter
+export default function AdvertiserPayments() {
+  const { user } = useAuth()
+  const supabase = createClient()
 
-    return matchesSearch && matchesStatus && matchesMethod
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+
+  // Stats
+  const [stats, setStats] = useState({
+    totalPaid: 0,
+    pendingAmount: 0,
+    totalInvoices: 0,
+    completedOrders: 0
   })
 
-  const totalSpent = transactions
-    .filter((t) => t.status === "Completed")
-    .reduce((sum, t) => sum + Number.parseFloat(t.total.replace("$", "")), 0)
+  useEffect(() => {
+    if (user) {
+      fetchPayments()
+    }
+  }, [user])
 
-  const totalFees = transactions
-    .filter((t) => t.status === "Completed")
-    .reduce((sum, t) => sum + Number.parseFloat(t.fee.replace("$", "")), 0)
+  const fetchPayments = async () => {
+    try {
+      setLoading(true)
 
-  const pendingAmount = transactions
-    .filter((t) => t.status === "Pending")
-    .reduce((sum, t) => sum + Number.parseFloat(t.total.replace("$", "")), 0)
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          *,
+          order:orders!inner(
+            title,
+            status,
+            advertiser_id,
+            website:websites(name, url)
+          )
+        `)
+        .eq('order.advertiser_id', user?.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const paymentsData = data as any[]
+      setPayments(paymentsData)
+
+      // Calculate stats
+      const totalPaid = paymentsData
+        .filter(p => p.invoice_status === 'PAID')
+        .reduce((sum, p) => sum + parseFloat(p.total_amount), 0)
+
+      const pendingAmount = paymentsData
+        .filter(p => p.invoice_status === 'SENT')
+        .reduce((sum, p) => sum + parseFloat(p.total_amount), 0)
+
+      const completedOrders = paymentsData
+        .filter(p => p.invoice_status === 'PAID' && p.order.status === 'paid')
+        .length
+
+      setStats({
+        totalPaid,
+        pendingAmount,
+        totalInvoices: paymentsData.length,
+        completedOrders
+      })
+
+    } catch (error) {
+      console.error('Error fetching payments:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPayments = payments.filter(payment => {
+    const matchesSearch = 
+      payment.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.order.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.order.website.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+    const matchesStatus = statusFilter === "all" || payment.invoice_status === statusFilter
+
+    return matchesSearch && matchesStatus
+  })
+
+  const openInvoice = (invoiceUrl: string) => {
+    let url = invoiceUrl
+    
+    // Fix old API URLs to public URLs
+    if (url.includes('api.sandbox.paypal.com') || url.includes('api-m.sandbox.paypal.com')) {
+      const invoiceId = url.split('/').pop()
+      url = `https://www.sandbox.paypal.com/invoice/p/#${invoiceId}`
+    } else if (url.includes('api.paypal.com') || url.includes('api-m.paypal.com')) {
+      const invoiceId = url.split('/').pop()
+      url = `https://www.paypal.com/invoice/p/#${invoiceId}`
+    }
+    
+    window.open(url, '_blank')
+  }
+
+  if (loading) {
+    return (
+      <AdvertiserLayout>
+        <div className="space-y-6">
+          <Skeleton className="h-24 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
+          </div>
+        </div>
+      </AdvertiserLayout>
+    )
+  }
 
   return (
     <AdvertiserLayout>
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Payment History</h1>
-            <p className="text-gray-600 mt-2">View and manage your transaction history</p>
-          </div>
-          <div className="flex items-center space-x-3 mt-4 sm:mt-0">
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Payment History</h1>
+          <p className="text-slate-600">Track all your invoices and payments</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">${totalSpent.toFixed(2)}</div>
-                  <p className="text-sm text-gray-600">Total Spent</p>
-                </div>
-                <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${stats.totalPaid.toFixed(2)}</div>
+              <p className="text-xs text-slate-500">{stats.completedOrders} completed orders</p>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">${totalFees.toFixed(2)}</div>
-                  <p className="text-sm text-gray-600">Total Fees</p>
-                </div>
-                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Receipt className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${stats.pendingAmount.toFixed(2)}</div>
+              <p className="text-xs text-slate-500">Awaiting payment</p>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">${pendingAmount.toFixed(2)}</div>
-                  <p className="text-sm text-gray-600">Pending</p>
-                </div>
-                <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <CreditCard className="h-6 w-6 text-yellow-600" />
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+              <Receipt className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalInvoices}</div>
+              <p className="text-xs text-slate-500">All time</p>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{transactions.length}</div>
-                  <p className="text-sm text-gray-600">Total Transactions</p>
-                </div>
-                <div className="h-12 w-12 bg-teal-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-teal-600" />
-                </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Platform Fees</CardTitle>
+              <TrendingUp className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                ${payments.reduce((sum, p) => sum + parseFloat(String(p.platform_fee || 0)), 0).toFixed(2)}
               </div>
+              <p className="text-xs text-slate-500">15% of total</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Transactions */}
+        {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle>Transaction History</CardTitle>
-            <CardDescription>All your payment transactions and invoices</CardDescription>
+            <CardTitle>All Payments</CardTitle>
+            <CardDescription>View and manage your payment history</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Search transactions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by invoice, order, or website..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Failed">Failed</SelectItem>
-                  <SelectItem value="Refunded">Refunded</SelectItem>
+                  <SelectItem value="SENT">Invoice Sent</SelectItem>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={methodFilter} onValueChange={setMethodFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Methods</SelectItem>
-                  <SelectItem value="Credit Card">Credit Card</SelectItem>
-                  <SelectItem value="PayPal">PayPal</SelectItem>
-                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                </SelectContent>
-              </Select>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full sm:w-48 bg-transparent">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
-                        </>
-                      ) : (
-                        format(dateRange.from, "LLL dd, y")
-                      )
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange.from}
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                  />
-                </PopoverContent>
-              </Popover>
             </div>
 
-            {/* Transactions Table */}
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Transaction</TableHead>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Website</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Fee</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
-                        <div className="font-medium">{transaction.id}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{transaction.orderId}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{transaction.website}</div>
-                          <div className="text-sm text-gray-600">{transaction.publisher}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{transaction.service}</TableCell>
-                      <TableCell className="font-medium">{transaction.amount}</TableCell>
-                      <TableCell className="text-gray-600">{transaction.fee}</TableCell>
-                      <TableCell className="font-medium">{transaction.total}</TableCell>
-                      <TableCell>
-                        <Badge className={statusColors[transaction.status as keyof typeof statusColors]}>
-                          {transaction.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{transaction.method}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">{transaction.date}</div>
-                        <div className="text-xs text-gray-600">{transaction.time}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            {/* Payments Table */}
+            <div className="space-y-4">
+              {filteredPayments.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <Receipt className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p className="text-lg font-medium">No payments found</p>
+                  <p className="text-sm">Your payment history will appear here</p>
+                </div>
+              ) : (
+                filteredPayments.map((payment) => {
+                  const statusInfo = statusConfig[payment.invoice_status] || statusConfig.SENT
+                  const StatusIcon = statusInfo.icon
 
-            {filteredTransactions.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-600">No transactions found matching your criteria.</p>
-              </div>
-            )}
+                  return (
+                    <div
+                      key={payment.id}
+                      className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-slate-900">{payment.order.title}</h3>
+                                <Badge className={statusInfo.color}>
+                                  <StatusIcon className="w-3 h-3 mr-1" />
+                                  {statusInfo.label}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-slate-600">
+                                {payment.order.website.name} • {payment.invoice_number}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 text-sm text-slate-500">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              {payment.paid_at ? (
+                                <span>Paid: {new Date(payment.paid_at).toLocaleDateString()}</span>
+                              ) : (
+                                <span>Created: {new Date(payment.created_at).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col md:items-end gap-2">
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-slate-900">
+                              ${payment.total_amount}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              Fee: ${payment.platform_fee} • Publisher: ${payment.publisher_amount}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Link href={`/advertiser/orders/${payment.order_id}`}>
+                              <Button variant="outline" size="sm">
+                                View Order
+                              </Button>
+                            </Link>
+                            {payment.invoice_url && (
+                              <Button
+                                size="sm"
+                                onClick={() => openInvoice(payment.invoice_url!)}
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                <ExternalLink className="w-4 h-4 mr-1" />
+                                Invoice
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment Lifecycle Progress */}
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className={`flex items-center gap-1 ${payment.invoice_sent_at ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Invoice Sent</span>
+                          </div>
+                          <div className="h-px flex-1 bg-slate-200 mx-2"></div>
+                          
+                          <div className={`flex items-center gap-1 ${payment.paid_at ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Paid</span>
+                          </div>
+                          <div className="h-px flex-1 bg-slate-200 mx-2"></div>
+                          
+                          <div className={`flex items-center gap-1 ${payment.order.status === 'paid' ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Publisher Paid</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

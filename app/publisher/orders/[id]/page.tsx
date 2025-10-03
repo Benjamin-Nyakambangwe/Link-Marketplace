@@ -44,6 +44,7 @@ interface OrderDetails {
   description: string
   total_amount: number
   status: string
+  payment_status?: string
   created_at: string
   requested_completion_date: string | null
   website: {
@@ -65,15 +66,23 @@ interface OrderDetails {
     service_config?: any
   }>
   order_steps: OrderStep[]
+  payment?: {
+    invoice_url: string | null
+    invoice_status: string
+    paid_at: string | null
+  }
 }
 
 const statusConfig = {
   pending: { label: "Pending Approval", color: "bg-orange-100 text-orange-700", icon: Clock },
   accepted: { label: "Accepted", color: "bg-blue-100 text-blue-700", icon: Play },
+  payment_pending: { label: "Awaiting Payment", color: "bg-yellow-100 text-yellow-700", icon: DollarSign },
   in_progress: { label: "In Progress", color: "bg-blue-100 text-blue-700", icon: Play },
   review: { label: "Under Review", color: "bg-purple-100 text-purple-700", icon: Eye },
   revision: { label: "Needs Revision", color: "bg-yellow-100 text-yellow-700", icon: AlertCircle },
   completed: { label: "Completed", color: "bg-green-100 text-green-700", icon: CheckCircle },
+  payment_processing: { label: "Processing Payment", color: "bg-blue-100 text-blue-700", icon: DollarSign },
+  paid: { label: "Paid", color: "bg-green-100 text-green-700", icon: CheckCircle },
   cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-700", icon: X },
   disputed: { label: "Disputed", color: "bg-red-100 text-red-700", icon: AlertCircle },
 }
@@ -119,7 +128,8 @@ export default function OrderDetail() {
           website:websites!inner(*),
           advertiser:profiles!advertiser_id(id, user_role),
           order_items(*),
-          order_steps(*)
+          order_steps(*),
+          payment:payments(invoice_url, invoice_status, paid_at)
         `)
         .eq('id', params.id)
         .single()
@@ -136,7 +146,13 @@ export default function OrderDetail() {
         return
       }
 
-      setOrder(data as OrderDetails)
+      // Transform payment array to single object
+      const orderData = {
+        ...data,
+        payment: data.payment?.[0] || null
+      }
+
+      setOrder(orderData as OrderDetails)
 
     } catch (err) {
       console.error('Error fetching order:', err)
@@ -174,10 +190,26 @@ export default function OrderDetail() {
     try {
       setUpdating(true)
 
-      // Update order status to in_progress (skip accepted, go straight to work)
+      // 1. Create PayPal invoice FIRST (before updating order status)
+      const response = await fetch('/api/payments/create-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: params.id })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create invoice')
+      }
+
+      // 2. Invoice created successfully, now update order status
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status: 'in_progress' })
+        .update({ 
+          status: 'payment_pending',
+          payment_status: 'pending'
+        })
         .eq('id', params.id)
 
       if (orderError) {
@@ -185,51 +217,34 @@ export default function OrderDetail() {
         throw orderError
       }
 
-      // Update all steps properly
-      const updates = []
-      
-      // Mark first step as completed
+      // 3. Mark first step as completed
       const firstStep = order?.order_steps.find(s => s.step_number === 1)
       if (firstStep) {
-        updates.push(
-          supabase
-            .from('order_steps')
-            .update({ 
-              status: 'completed',
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', firstStep.id)
-        )
+        await supabase
+          .from('order_steps')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', firstStep.id)
       }
 
-      // Mark second step as in_progress
-      const secondStep = order?.order_steps.find(s => s.step_number === 2)
-      if (secondStep) {
-        updates.push(
-          supabase
-            .from('order_steps')
-            .update({ 
-              status: 'in_progress',
-              started_at: new Date().toISOString()
-            })
-            .eq('id', secondStep.id)
-        )
-      }
-
-      // Wait for all updates to complete
-      const results = await Promise.all(updates)
-      
-      // Check for errors
-      results.forEach((result, index) => {
-        if (result.error) {
-          console.error(`Error updating step ${index + 1}:`, result.error)
-        }
-      })
-
+      // 4. Refresh order to show payment status
       await fetchOrderDetails()
-    } catch (err) {
+      
+      // Show success or warning message
+      if (result.warning) {
+        alert(`Order accepted! ${result.warning}`)
+      } else {
+        alert('Order accepted! Invoice has been sent to the advertiser. You will be notified when payment is received.')
+      }
+
+    } catch (err: any) {
       console.error('Error accepting order:', err)
-      alert('Failed to accept order. Please try again.')
+      alert(err.message || 'Failed to accept order. Please try again.')
+      
+      // Refresh to show correct state
+      await fetchOrderDetails()
     } finally {
       setUpdating(false)
     }
@@ -279,6 +294,12 @@ export default function OrderDetail() {
   const submitWork = async () => {
     if (!publishedUrl.trim()) {
       alert('Please provide the published URL')
+      return
+    }
+
+    // Check if payment is received
+    if (order?.payment_status !== 'paid') {
+      alert('Cannot submit work until payment is received from advertiser.')
       return
     }
 
@@ -421,13 +442,13 @@ export default function OrderDetail() {
             {needsSync && (
               <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm mb-3">
                 <div className="text-yellow-800 font-medium mb-2">⚠ Steps need syncing</div>
-                <Button
+          <Button
                   size="sm"
                   variant="outline"
                   className="w-full bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border-yellow-300"
                   onClick={syncSteps}
-                  disabled={updating}
-                >
+            disabled={updating}
+          >
                   {updating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
                   Fix Progress & Continue
                 </Button>
@@ -515,7 +536,7 @@ export default function OrderDetail() {
             >
               {updating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
               Resubmit Work
-            </Button>
+          </Button>
           </div>
         )
         break
@@ -626,10 +647,10 @@ export default function OrderDetail() {
                       
                       return (
                         <div key={index} className="border rounded-lg p-4 bg-white">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-medium">{item.service_name}</h4>
-                            <span className="text-lg font-bold">${item.total_price}</span>
-                          </div>
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium">{item.service_name}</h4>
+                          <span className="text-lg font-bold">${item.total_price}</span>
+                        </div>
                           <p className="text-sm text-gray-600 mb-3">{item.service_description}</p>
                           
                           {/* Service Specifications */}
@@ -658,7 +679,7 @@ export default function OrderDetail() {
                               <div>
                                 <span className="text-gray-500">Word Count:</span>
                                 <span className="ml-2 font-medium">{customizations.word_count}</span>
-                              </div>
+                        </div>
                             )}
                           </div>
 
@@ -747,9 +768,9 @@ export default function OrderDetail() {
                                   ? item.custom_requirements 
                                   : JSON.stringify(item.custom_requirements, null, 2)}
                               </p>
-                            </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                      </div>
                       )
                     })}
                   </div>
@@ -821,6 +842,62 @@ export default function OrderDetail() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Payment Status Alert */}
+            {order.status === 'payment_pending' && (
+              <Alert className="border-yellow-300 bg-yellow-50">
+                <Clock className="w-4 h-4 text-yellow-600" />
+                <AlertDescription className="text-yellow-800">
+                  <div className="font-medium mb-2">⏳ Waiting for Payment</div>
+                  <p className="text-sm">Invoice has been sent to the advertiser. You'll be notified when payment is received.</p>
+                  <p className="text-sm mt-2 font-medium">⚠️ Do not start work until payment is confirmed.</p>
+                  {order.payment?.invoice_url && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 w-full"
+                      onClick={() => {
+                        let invoiceUrl = order.payment?.invoice_url || ''
+                        
+                        // Fix old API URLs to public URLs
+                        if (invoiceUrl.includes('api.sandbox.paypal.com') || invoiceUrl.includes('api-m.sandbox.paypal.com')) {
+                          const invoiceId = invoiceUrl.split('/').pop()
+                          invoiceUrl = `https://www.sandbox.paypal.com/invoice/p/#${invoiceId}`
+                        } else if (invoiceUrl.includes('api.paypal.com') || invoiceUrl.includes('api-m.paypal.com')) {
+                          const invoiceId = invoiceUrl.split('/').pop()
+                          invoiceUrl = `https://www.paypal.com/invoice/p/#${invoiceId}`
+                        }
+                        
+                        window.open(invoiceUrl, '_blank')
+                      }}
+                    >
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      View Invoice
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {order.status === 'in_progress' && order.payment_status === 'paid' && (
+              <Alert className="border-green-300 bg-green-50">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  <div className="font-medium mb-1">✅ Payment Received</div>
+                  <p className="text-sm">${order.total_amount} confirmed. You can now start work!</p>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {order.status === 'paid' && (
+              <Alert className="border-green-300 bg-green-50">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  <div className="font-medium mb-1">💰 You've Been Paid!</div>
+                  <p className="text-sm">Payout of ${(order.total_amount * 0.85).toFixed(2)} has been sent to your PayPal account.</p>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Quick Actions */}
             <Card>
               <CardHeader>

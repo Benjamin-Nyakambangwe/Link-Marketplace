@@ -43,6 +43,8 @@ interface OrderDetails {
   description: string
   total_amount: number
   status: string
+  payment_status?: string
+  published_url?: string
   created_at: string
   requested_completion_date: string | null
   website: {
@@ -72,15 +74,26 @@ interface OrderDetails {
     sender_type: 'advertiser' | 'publisher'
     created_at: string
   }>
+  payment?: {
+    invoice_url: string | null
+    invoice_status: string
+    paid_at: string | null
+    total_amount: number
+    platform_fee: number
+    publisher_amount: number
+  }
 }
 
 const statusConfig = {
   pending: { label: "Pending Approval", color: "bg-orange-100 text-orange-700", icon: Clock },
   accepted: { label: "Accepted", color: "bg-blue-100 text-blue-700", icon: Play },
+  payment_pending: { label: "Payment Required", color: "bg-yellow-100 text-yellow-700", icon: DollarSign },
   in_progress: { label: "In Progress", color: "bg-blue-100 text-blue-700", icon: Play },
   review: { label: "Under Review", color: "bg-purple-100 text-purple-700", icon: Eye },
   revision: { label: "Needs Revision", color: "bg-yellow-100 text-yellow-700", icon: AlertCircle },
   completed: { label: "Completed", color: "bg-green-100 text-green-700", icon: CheckCircle },
+  payment_processing: { label: "Processing Payment", color: "bg-blue-100 text-blue-700", icon: DollarSign },
+  paid: { label: "Paid", color: "bg-green-100 text-green-700", icon: CheckCircle },
   cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-700", icon: AlertCircle },
   disputed: { label: "Disputed", color: "bg-red-100 text-red-700", icon: AlertCircle },
 }
@@ -128,7 +141,8 @@ export default function OrderDetail() {
           publisher:profiles!publisher_id(id, user_role),
           order_items(*),
           order_steps(*),
-          order_messages(*)
+          order_messages(*),
+          payment:payments(invoice_url, invoice_status, paid_at, total_amount, platform_fee, publisher_amount)
         `)
         .eq('id', params.id)
         .single()
@@ -139,7 +153,24 @@ export default function OrderDetail() {
         return
       }
 
-      setOrder(data as OrderDetails)
+      // Handle payment data (can be object or array depending on Supabase response)
+      const paymentData = Array.isArray(data.payment) 
+        ? data.payment[0] || null 
+        : data.payment || null
+
+      const orderData = {
+        ...data,
+        payment: paymentData
+      }
+
+      console.log('Order loaded:', {
+        status: orderData.status,
+        paymentStatus: orderData.payment_status,
+        hasPayment: !!orderData.payment,
+        paymentData: orderData.payment
+      })
+
+      setOrder(orderData as OrderDetails)
 
     } catch (err) {
       console.error('Error fetching order:', err)
@@ -181,7 +212,7 @@ export default function OrderDetail() {
     try {
       setIsApproving(true)
 
-      // Update order to completed
+      // 1. Mark order as completed (not payment_processing yet)
       const { error: orderError } = await supabase
         .from('orders')
         .update({ 
@@ -192,7 +223,7 @@ export default function OrderDetail() {
 
       if (orderError) throw orderError
 
-      // Mark final step as completed
+      // 2. Mark final step as completed
       const finalStep = order?.order_steps.find(s => s.step_number === 3)
       if (finalStep) {
         await supabase
@@ -205,11 +236,30 @@ export default function OrderDetail() {
           .eq('id', finalStep.id)
       }
 
+      // 3. Initiate payout to publisher (call API)
+      // This will update order to payment_processing AFTER payout succeeds
+      const response = await fetch('/api/payments/create-payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: params.id })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        // Payout failed - order stays in 'completed' status
+        // Show error but don't revert (advertiser can try again)
+        throw new Error(result.error || 'Failed to initiate payout')
+      }
+
       setApprovalNotes("")
       await fetchOrderDetails()
-    } catch (err) {
+      
+      alert('Order approved! Payment is being sent to the publisher.')
+
+    } catch (err: any) {
       console.error('Error approving order:', err)
-      alert('Failed to approve order. Please try again.')
+      alert(err.message || 'Failed to approve order. Please try again.')
     } finally {
       setIsApproving(false)
     }
@@ -599,6 +649,81 @@ export default function OrderDetail() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Payment Required Card */}
+            {order.status === 'payment_pending' && order.payment && (
+              <Card className="border-2 border-blue-500">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <DollarSign className="w-5 h-5 text-blue-600" />
+                    <span>Payment Required</span>
+                  </CardTitle>
+                  <CardDescription>Publisher has accepted your order. Please pay to proceed.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Order Total:</span>
+                      <span className="font-bold text-lg">${order.payment.total_amount}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 border-t border-blue-200 pt-2">
+                      <div className="flex justify-between">
+                        <span>Platform Fee (15%):</span>
+                        <span>${order.payment.platform_fee.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Publisher Receives:</span>
+                        <span>${order.payment.publisher_amount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      let invoiceUrl = order.payment?.invoice_url || ''
+                      
+                      // Fix old API URLs to public URLs
+                      if (invoiceUrl.includes('api.sandbox.paypal.com') || invoiceUrl.includes('api-m.sandbox.paypal.com')) {
+                        const invoiceId = invoiceUrl.split('/').pop()
+                        invoiceUrl = `https://www.sandbox.paypal.com/invoice/p/#${invoiceId}`
+                      } else if (invoiceUrl.includes('api.paypal.com') || invoiceUrl.includes('api-m.paypal.com')) {
+                        const invoiceId = invoiceUrl.split('/').pop()
+                        invoiceUrl = `https://www.paypal.com/invoice/p/#${invoiceId}`
+                      }
+                      
+                      window.open(invoiceUrl, '_blank')
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    size="lg"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    View & Pay Invoice
+                  </Button>
+                  <p className="text-xs text-center text-gray-500">
+                    You'll be redirected to PayPal to complete payment
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Payment Processing */}
+            {(order.status === 'payment_processing' || order.status === 'paid') && (
+              <Alert className="border-green-300 bg-green-50">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  {order.status === 'payment_processing' ? (
+                    <>
+                      <div className="font-medium mb-1">💳 Processing Payment</div>
+                      <p className="text-sm">Sending ${order.payment?.publisher_amount.toFixed(2)} to publisher...</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-medium mb-1">✅ Payment Complete</div>
+                      <p className="text-sm">Publisher has been paid. Order complete!</p>
+                    </>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Quick Actions for Advertiser */}
             {order.status === 'review' && (
               <Card>
