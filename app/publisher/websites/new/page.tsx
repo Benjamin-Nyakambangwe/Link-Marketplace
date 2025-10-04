@@ -17,6 +17,7 @@ import { useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { CountryDropdown } from "@/components/ui/country-dropdown"
 
 const niches = [
   "Technology",
@@ -33,20 +34,19 @@ const niches = [
   "E-commerce",
 ]
 
+const trafficSources = [
+    { value: "organic", label: "Organic Search" },
+    { value: "paid", label: "Paid Search" },
+    { value: "social", label: "Social Media" },
+    { value: "referral", label: "Referral" },
+    { value: "direct", label: "Direct Traffic" },
+  ];
+
 const contentNiches = [
   { key: "cbd", label: "CBD", description: "Cannabis and CBD-related content" },
-  { key: "casino", label: "Casino/Gambling", description: "Gambling and casino content" },
   { key: "adult", label: "Adult", description: "Adult-oriented content" },
-  { key: "pharma", label: "Pharmaceutical", description: "Pharmaceutical and medical products" },
-  { key: "finance", label: "Finance/Investment", description: "Financial services and investment" },
-  { key: "legal", label: "Legal", description: "Legal services and advice" },
-  { key: "health", label: "Health/Medical", description: "Health and medical content" },
   { key: "crypto", label: "Cryptocurrency", description: "Cryptocurrency and blockchain" },
-  { key: "tech", label: "Tech/Software", description: "Technology and software" },
-  { key: "travel", label: "Travel/Hospitality", description: "Travel and hospitality" },
-  { key: "fashion", label: "Fashion/Beauty", description: "Fashion and beauty" },
-  { key: "realestate", label: "Real Estate", description: "Real estate and property" },
-  { key: "ecommerce", label: "E-commerce", description: "E-commerce and retail" },
+  { key: "casino", label: "Casino/Gambling", description: "Gambling and casino content" },
 ]
 
 export default function AddWebsite() {
@@ -398,21 +398,25 @@ export default function AddWebsite() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="geographicFocus">Geographic Focus</Label>
-                  <Input
-                    id="geographicFocus"
-                    placeholder="US, Global, Europe, etc."
-                    value={formData.geographicFocus || ""}
-                    onChange={(e) => handleInputChange("geographicFocus", e.target.value)}
+                  <CountryDropdown
+                    value={formData.geographicFocus}
+                    onChange={(value) => handleInputChange("geographicFocus", value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="trafficSource">Primary Traffic Source</Label>
-                  <Input
-                    id="trafficSource"
-                    placeholder="Organic search, social media, direct, etc."
-                    value={formData.trafficSource}
-                    onChange={(e) => handleInputChange("trafficSource", e.target.value)}
-                  />
+                  <Select value={formData.trafficSource} onValueChange={(value) => handleInputChange("trafficSource", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a traffic source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {trafficSources.map((source) => (
+                        <SelectItem key={source.value} value={source.value}>
+                          {source.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

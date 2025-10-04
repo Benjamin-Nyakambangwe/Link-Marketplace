@@ -168,12 +168,20 @@ export default function MyWebsites() {
             <Card key={website.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <Globe className="w-5 h-5 text-teal-600" />
-                      <span>{website.name}</span>
-                    </CardTitle>
-                    <CardDescription className="mt-1">{website.primary_niche}</CardDescription>
+                  <div className="flex items-center space-x-4">
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${website.url}&sz=64`}
+                      alt={`${website.name} favicon`}
+                      width={32}
+                      height={32}
+                      className="rounded-full"
+                    />
+                    <div className="flex-1">
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <span>{website.name}</span>
+                      </CardTitle>
+                      <CardDescription className="mt-1">{website.primary_niche}</CardDescription>
+                    </div>
                   </div>
                   <Badge
                     variant={website.status === "approved" ? "default" : "secondary"}

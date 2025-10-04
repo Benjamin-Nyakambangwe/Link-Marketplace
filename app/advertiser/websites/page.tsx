@@ -4,7 +4,8 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Search, Filter, Star, Globe, Users, TrendingUp, DollarSign, Clock, MapPin } from "lucide-react"
+import { Search, Filter, Star, Globe, Users, TrendingUp, DollarSign, Clock, MapPin, Eye, FileText, Link as LinkIcon, Video, Image, Cannabis, Bitcoin, BookHeart, Coins } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 import AdvertiserLayout from "@/components/advertiser/advertiser-layout"
 import { useAuth } from "@/hooks/use-auth"
@@ -33,12 +36,32 @@ interface Website {
   geographic_focus: string
   available_services: any[]
   pricing_addons: any[]
+  content_restrictions: any
   minimum_order_value: number
   response_time_hours: number
   status: string
   user_id: string
   created_at: string
 }
+
+const contentNicheIcons: Record<string, { icon: any; label: string }> = {
+  cbd: { icon: Cannabis, label: "CBD" },
+  adult: { icon: BookHeart, label: "Adult" },
+  crypto: { icon: Bitcoin, label: "Crypto" },
+  casino: { icon: Coins, label: "Casino" },
+}
+
+const allServiceTypes = [
+  { type: 'guest_post', icon: FileText, label: 'Guest Post' },
+  { type: 'link_placement', icon: LinkIcon, label: 'Link Placement' },
+  { type: 'sponsored_content', icon: Star, label: 'Sponsored Content' },
+]
+
+const allAddonTypes = [
+  { type: 'image_inclusion', icon: Image, label: 'Image Inclusion' },
+  { type: 'video_inclusion', icon: Video, label: 'Video Inclusion' },
+  { type: 'rush_delivery', icon: Clock, label: 'Rush Delivery' },
+]
 
 const niches = [
   "All Niches",
@@ -196,7 +219,7 @@ export default function BrowseWebsites() {
 
   return (
     <AdvertiserLayout>
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-9xl ml-5 mr-5 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -214,9 +237,9 @@ export default function BrowseWebsites() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Filters Sidebar */}
-          <div className="space-y-6">
+          <div className="lg:col-span-3 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
@@ -315,8 +338,8 @@ export default function BrowseWebsites() {
             </Card>
           </div>
 
-          {/* Website Grid */}
-          <div className="lg:col-span-3">
+          {/* Website Table */}
+          <div className="lg:col-span-9">
             {filteredWebsites.length === 0 ? (
               <Card className="p-12 text-center">
                 <Globe className="w-12 h-12 text-slate-400 mx-auto mb-4" />
@@ -337,98 +360,166 @@ export default function BrowseWebsites() {
                 </Button>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredWebsites.map((website) => {
-                  const lowestPrice = getLowestServicePrice(website.available_services)
-                  
-                  return (
-                    <Card key={website.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg line-clamp-1">{website.name}</CardTitle>
-                            <CardDescription className="text-sm text-blue-600 hover:underline">
-                              {website.url}
-                            </CardDescription>
-                          </div>
-                          {website.logo_url && (
-                            <img 
-                              src={website.logo_url} 
-                              alt={website.name}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="w-fit">
-                          {website.primary_niche}
-                        </Badge>
-                      </CardHeader>
-                      
-                      <CardContent className="space-y-4">
-                        <p className="text-sm text-slate-600 line-clamp-2">
-                          {website.description}
-                        </p>
-
-                        {/* Stats */}
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="flex items-center space-x-2">
-                            <Users className="w-4 h-4 text-slate-400" />
-                            <span className="text-slate-700">{formatNumber(website.monthly_visitors)} visitors</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <TrendingUp className="w-4 h-4 text-slate-400" />
-                            <span className="text-slate-700">DA {website.domain_authority}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4 text-slate-400" />
-                            <span className="text-slate-700">{website.response_time_hours}h response</span>
-                          </div>
-                          {website.geographic_focus && (
-                            <div className="flex items-center space-x-2">
-                              <MapPin className="w-4 h-4 text-slate-400" />
-                              <span className="text-slate-700">{website.geographic_focus}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Services Preview */}
-                        <div>
-                          <p className="text-sm font-medium text-slate-900 mb-2">
-                            Available Services ({website.available_services?.length || 0})
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {website.available_services?.slice(0, 3).map((service, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {service.name}
-                              </Badge>
-                            ))}
-                            {(website.available_services?.length || 0) > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{(website.available_services?.length || 0) - 3} more
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Pricing */}
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <div className="flex items-center space-x-2 text-sm">
-                            <DollarSign className="w-4 h-4 text-slate-400" />
-                            <span className="text-slate-700">
-                              {lowestPrice ? `From $${lowestPrice}` : 'Custom pricing'}
-                            </span>
-                          </div>
-                          <Button size="sm" className="bg-teal-600 hover:bg-teal-700" asChild>
-                            <Link href={`/advertiser/websites/${website.id}`}>
-                              View Details
-                            </Link>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+              <Card>
+                <div className="overflow-x-auto">
+                  <TooltipProvider>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[250px]">Website</TableHead>
+                          <TableHead className="text-center">Price</TableHead>
+                          <TableHead className="text-center">Authority</TableHead>
+                          <TableHead className="text-center">Traffic</TableHead>
+                          <TableHead className="text-center">Country</TableHead>
+                          <TableHead className="w-[200px]">Primary Niche</TableHead>
+                          <TableHead className="text-center">Services</TableHead>
+                          <TableHead className="text-center">Accepted Niches</TableHead>
+                          <TableHead className="text-center">Addons</TableHead>
+                          <TableHead className="text-center">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredWebsites.map((website) => {
+                          const lowestPrice = getLowestServicePrice(website.available_services)
+                          const acceptedNiches = website.content_restrictions?.accepted_niches || []
+                          
+                          return (
+                            <TableRow key={website.id} className="hover:bg-slate-50">
+                              <TableCell>
+                                <div className="flex items-center space-x-3">
+                                  <img
+                                    src={`https://www.google.com/s2/favicons?domain=${website.url}&sz=64`}
+                                    alt={`${website.name} favicon`}
+                                    width={24}
+                                    height={24}
+                                    className="rounded"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-slate-900 truncate">{website.name}</p>
+                                    <p className="text-xs text-slate-500 truncate">{website.url}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                <span className="font-semibold text-teal-600">
+                                  {lowestPrice ? `$${lowestPrice}` : 'N/A'}
+                                </span>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                <Badge variant="secondary" className="bg-teal-100 text-teal-700">
+                                  {website.domain_authority || 'N/A'}
+                                </Badge>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                <span className="text-sm text-slate-700">
+                                  {formatNumber(website.monthly_visitors)}
+                                </span>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                {website.geographic_focus && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <CircleFlag
+                                        countryCode={website.geographic_focus.toLowerCase()}
+                                        className="w-6 h-6 mx-auto"
+                                      />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {website.geographic_focus}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </TableCell>
+                              
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {website.primary_niche}
+                                </Badge>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center space-x-1">
+                                  {allServiceTypes.map((serviceType) => {
+                                    const isAvailable = website.available_services?.some(s => s.type === serviceType.type)
+                                    const ServiceIcon = serviceType.icon
+                                    return (
+                                      <Tooltip key={serviceType.type}>
+                                        <TooltipTrigger>
+                                          <ServiceIcon className={`w-4 h-4 ${isAvailable ? 'text-teal-600' : 'text-slate-300'}`} />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {serviceType.label} {isAvailable ? '(Available)' : '(Not Available)'}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )
+                                  })}
+                                </div>
+                              </TableCell>
+                              
+                              <TableCell>
+                                <div className="flex items-center justify-center flex-wrap gap-1">
+                                  {Object.keys(contentNicheIcons).map((nicheKey) => {
+                                    const isAccepted = acceptedNiches.includes(nicheKey)
+                                    const IconComponent = contentNicheIcons[nicheKey].icon
+                                    return (
+                                      <Tooltip key={nicheKey}>
+                                        <TooltipTrigger>
+                                          <IconComponent
+                                            className={`w-4 h-4 ${
+                                              isAccepted ? 'text-teal-600' : 'text-slate-300'
+                                            }`}
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {contentNicheIcons[nicheKey].label}
+                                          {isAccepted ? ' (Accepted)' : ' (Not Accepted)'}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )
+                                  })}
+                                </div>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center space-x-1">
+                                  {allAddonTypes.map((addonType) => {
+                                    const addon = website.pricing_addons?.find(a => a.type === addonType.type)
+                                    const isAvailable = !!addon
+                                    const AddonIcon = addonType.icon
+                                    return (
+                                      <Tooltip key={addonType.type}>
+                                        <TooltipTrigger>
+                                          <AddonIcon className={`w-4 h-4 ${isAvailable ? 'text-teal-600' : 'text-slate-300'}`} />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {addonType.label} {isAvailable ? `- $${addon.price}` : '(Not Available)'}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )
+                                  })}
+                                </div>
+                              </TableCell>
+                              
+                              <TableCell className="text-center">
+                                <Button size="sm" className="bg-teal-600 hover:bg-teal-700" asChild>
+                                  <Link href={`/advertiser/websites/${website.id}`}>
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    View
+                                  </Link>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TooltipProvider>
+                </div>
+              </Card>
             )}
           </div>
         </div>
