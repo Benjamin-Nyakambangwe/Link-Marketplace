@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Search, Filter, Star, Globe, Users, TrendingUp, DollarSign, Clock, MapPin, Eye, FileText, Link as LinkIcon, Video, Image, Cannabis, Bitcoin, BookHeart, Coins } from "lucide-react"
+import { Search, Filter, Star, Globe, Users, TrendingUp, DollarSign, Clock, MapPin, Eye, FileText, Link as LinkIcon, Video, Image, Cannabis, Bitcoin, BookHeart, Coins, BadgeCheck } from "lucide-react"
 import { CircleFlag } from "react-circle-flags"
 
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,7 @@ interface Website {
   status: string
   user_id: string
   created_at: string
+  da_verified?: boolean
 }
 
 const contentNicheIcons: Record<string, { icon: any; label: string }> = {
@@ -408,9 +409,21 @@ export default function BrowseWebsites() {
                               </TableCell>
                               
                               <TableCell className="text-center">
-                                <Badge variant="secondary" className="bg-teal-100 text-teal-700">
-                                  {website.domain_authority || 'N/A'}
-                                </Badge>
+                                {/* <Badge variant="secondary" className="bg-teal-100 text-teal-700 flex items-center justify-center gap-1"> */}
+                                 <div className="flex items-center justify-center gap-1">
+                                  <p className="text-slate-600 font-semibold">{website.domain_authority || 'N/A'}</p>
+                                  {website.da_verified && (
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <BadgeCheck className="w-4 h-4 text-teal-600" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Domain Authority verified by Moz</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                                {/* </Badge> */}
                               </TableCell>
                               
                               <TableCell className="text-center">

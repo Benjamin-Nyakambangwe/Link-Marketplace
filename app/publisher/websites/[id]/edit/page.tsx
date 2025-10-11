@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Globe, DollarSign, LinkIcon, FileText, Star, ImageIcon, Video, Zap, Loader2 } from "lucide-react"
+import { ArrowLeft, Globe, DollarSign, LinkIcon, FileText, Star, ImageIcon, Video, Zap, Loader2, CheckCircle, XCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import PublisherLayout from "@/components/publisher/publisher-layout"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/components/ui/use-toast"
 
 const niches = [
   "Technology",
@@ -50,11 +51,14 @@ const contentNiches = [
   { key: "ecommerce", label: "E-commerce", description: "E-commerce and retail" },
 ]
 
+type DaVerificationStatus = "idle" | "loading" | "verified" | "error"
+
 export default function EditWebsite() {
   const { user } = useAuth()
   const router = useRouter()
   const params = useParams()
   const supabase = createClient()
+  const { toast } = useToast()
   const websiteId = params.id as string
   
   const [formData, setFormData] = useState({
@@ -109,6 +113,7 @@ export default function EditWebsite() {
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [daVerificationStatus, setDaVerificationStatus] = useState<DaVerificationStatus>("idle")
 
   useEffect(() => {
     if (user && websiteId) {
@@ -163,6 +168,10 @@ export default function EditWebsite() {
       acceptedNiches.forEach((niche: string) => {
         contentNicheAcceptance[niche] = true
       })
+
+      if (data.da_verified) {
+        setDaVerificationStatus("verified")
+      }
 
       setFormData({
         websiteUrl: data.url || "",
@@ -221,6 +230,9 @@ export default function EditWebsite() {
   }
 
   const handleInputChange = (field: string, value: any) => {
+    if (field === "domainAuthority") {
+      setDaVerificationStatus("idle")
+    }
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -245,6 +257,64 @@ export default function EditWebsite() {
         [niche]: price,
       },
     }))
+  }
+
+  const handleVerifyDA = async () => {
+    if (!formData.websiteUrl || !formData.domainAuthority) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both a website URL and a Domain Authority value to verify.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setDaVerificationStatus("loading")
+
+    try {
+      const response = await fetch('/api/websites/verify-da', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          website_id: websiteId,
+          url: formData.websiteUrl,
+          da: parseInt(formData.domainAuthority),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (result.da_verified) {
+          setDaVerificationStatus("verified")
+          toast({
+            title: "Verification Successful",
+            description: `DA verified! Moz DA is ${result.moz_da}.`,
+          })
+        } else {
+          setDaVerificationStatus("error")
+          toast({
+            title: "Verification Failed",
+            description: `The entered DA is outside the acceptable range of the Moz DA (${result.moz_da}).`,
+            variant: "destructive",
+          })
+        }
+      } else {
+        setDaVerificationStatus("error")
+        toast({
+          title: "Verification Error",
+          description: result.error || "An unknown error occurred.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      setDaVerificationStatus("error")
+      toast({
+        title: "Verification Error",
+        description: "Failed to connect to the verification service.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -508,15 +578,23 @@ export default function EditWebsite() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="domainAuthority">Domain Authority</Label>
-                  <Input
-                    id="domainAuthority"
-                    type="number"
-                    placeholder="45"
-                    min="0"
-                    max="100"
-                    value={formData.domainAuthority}
-                    onChange={(e) => handleInputChange("domainAuthority", e.target.value)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="domainAuthority"
+                      type="number"
+                      placeholder="45"
+                      min="0"
+                      max="100"
+                      value={formData.domainAuthority}
+                      onChange={(e) => handleInputChange("domainAuthority", e.target.value)}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={handleVerifyDA} disabled={daVerificationStatus === 'loading'}>
+                      {daVerificationStatus === 'loading' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {daVerificationStatus === 'verified' && <CheckCircle className="w-4 h-4 mr-2 text-green-500" />}
+                      {daVerificationStatus === 'error' && <XCircle className="w-4 h-4 mr-2 text-red-500" />}
+                      Verify
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="engagementRate">Engagement Rate (%)</Label>

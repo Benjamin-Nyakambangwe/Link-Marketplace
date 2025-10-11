@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Globe, ArrowLeft, DollarSign, LinkIcon, FileText, Star, ImageIcon, Video, Zap } from "lucide-react"
+import { Globe, ArrowLeft, DollarSign, LinkIcon, FileText, Star, ImageIcon, Video, Zap, CheckCircle, XCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import PublisherLayout from "@/components/publisher/publisher-layout"
 import { useState } from "react"
@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { CountryDropdown } from "@/components/ui/country-dropdown"
+import { useToast } from "@/components/ui/use-toast"
 
 const niches = [
   "Technology",
@@ -49,10 +50,13 @@ const contentNiches = [
   { key: "casino", label: "Casino/Gambling", description: "Gambling and casino content" },
 ]
 
+type DaVerificationStatus = "idle" | "loading" | "verified" | "error"
+
 export default function AddWebsite() {
   const { user } = useAuth()
   const router = useRouter()
   const supabase = createClient()
+  const { toast } = useToast()
   
   const [formData, setFormData] = useState({
     websiteUrl: "",
@@ -105,8 +109,12 @@ export default function AddWebsite() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [daVerificationStatus, setDaVerificationStatus] = useState<DaVerificationStatus>("idle")
 
   const handleInputChange = (field: string, value: any) => {
+    if (field === "domainAuthority") {
+      setDaVerificationStatus("idle")
+    }
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -131,6 +139,63 @@ export default function AddWebsite() {
         [niche]: price,
       },
     }))
+  }
+
+  const handleVerifyDA = async () => {
+    if (!formData.websiteUrl || !formData.domainAuthority) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both a website URL and a Domain Authority value to verify.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setDaVerificationStatus("loading")
+
+    try {
+      const response = await fetch('/api/websites/verify-da', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: formData.websiteUrl,
+          da: parseInt(formData.domainAuthority),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (result.da_verified) {
+          setDaVerificationStatus("verified")
+          toast({
+            title: "Verification Successful",
+            description: `DA verified! Moz DA is ${result.moz_da}.`,
+          })
+        } else {
+          setDaVerificationStatus("error")
+          toast({
+            title: "Verification Failed",
+            description: `The entered DA is outside the acceptable range of the Moz DA (${result.moz_da}).`,
+            variant: "destructive",
+          })
+        }
+      } else {
+        setDaVerificationStatus("error")
+        toast({
+          title: "Verification Error",
+          description: result.error || "An unknown error occurred.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      setDaVerificationStatus("error")
+      toast({
+        title: "Verification Error",
+        description: "Failed to connect to the verification service.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -372,15 +437,23 @@ export default function AddWebsite() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="domainAuthority">Domain Authority</Label>
-                  <Input
-                    id="domainAuthority"
-                    type="number"
-                    placeholder="45"
-                    min="0"
-                    max="100"
-                    value={formData.domainAuthority}
-                    onChange={(e) => handleInputChange("domainAuthority", e.target.value)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="domainAuthority"
+                      type="number"
+                      placeholder="45"
+                      min="0"
+                      max="100"
+                      value={formData.domainAuthority}
+                      onChange={(e) => handleInputChange("domainAuthority", e.target.value)}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={handleVerifyDA} disabled={daVerificationStatus === 'loading'}>
+                      {daVerificationStatus === 'loading' && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {daVerificationStatus === 'verified' && <CheckCircle className="w-4 h-4 mr-2 text-green-500" />}
+                      {daVerificationStatus === 'error' && <XCircle className="w-4 h-4 mr-2 text-red-500" />}
+                      Verify
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="engagementRate">Engagement Rate (%)</Label>
