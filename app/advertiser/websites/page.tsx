@@ -240,7 +240,7 @@ export default function BrowseWebsites() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Filters Sidebar */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
@@ -340,7 +340,7 @@ export default function BrowseWebsites() {
           </div>
 
           {/* Website Table */}
-          <div className="lg:col-span-9">
+          <div className="lg:col-span-10">
             {filteredWebsites.length === 0 ? (
               <Card className="p-12 text-center">
                 <Globe className="w-12 h-12 text-slate-400 mx-auto mb-4" />
