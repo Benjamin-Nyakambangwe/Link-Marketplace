@@ -91,7 +91,7 @@ export default function PublisherLayout({ children }: PublisherLayoutProps) {
               <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
                 <LinkIcon className="w-4 h-4 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">LinkMarket</span>
+              <span className="text-xl font-bold text-slate-900">Click Optima</span>
             </Link>
             <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
               ×
@@ -126,7 +126,7 @@ export default function PublisherLayout({ children }: PublisherLayoutProps) {
               <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
                 <LinkIcon className="w-4 h-4 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">LinkMarket</span>
+              <span className="text-xl font-bold text-slate-900">Click Optima</span>
             </Link>
           </div>
           <nav className="flex-1 px-4 py-4 space-y-2">

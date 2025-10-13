@@ -2,43 +2,62 @@
 
 import type React from "react"
 
-import { useState, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Eye, EyeOff, LinkIcon, Mail, Lock, Github } from "lucide-react"
+import { Eye, EyeOff, LinkIcon, Mail, Lock, Globe, Target, Github } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
-import { createClient } from '@/lib/supabase/client'
+import { Metadata } from "next"
 
-function LoginForm() {
+export const metadata: Metadata = {
+  title: 'Register | Click Optima',
+  description: 'Create an account with Click Optima to start buying and selling backlinks.',
+}
+
+export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    confirmPassword: "",
+    role: "advertiser",
   })
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const { signInWithEmail, signInWithOAuth } = useAuth()
-  const supabase = createClient()
-  
-  // Check for messages from URL params
-  const message = searchParams.get('message')
+  const { signUpWithEmail, signInWithOAuth } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match")
+      setIsLoading(false)
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long")
+      setIsLoading(false)
+      return
+    }
+
     try {
-      const { error } = await signInWithEmail(formData.email, formData.password)
+      const { error } = await signUpWithEmail(
+        formData.email, 
+        formData.password, 
+        { user_role: formData.role }
+      )
       
       if (error) {
         setError(error.message)
@@ -46,30 +65,19 @@ function LoginForm() {
         return
       }
 
-      // Get user data after successful login to determine redirect
-      const { data: { user } } = await supabase.auth.getUser()
-      const userRole = user?.user_metadata?.user_role || user?.app_metadata?.user_role
-      
-      // Redirect based on role or intended page
-      const redirectTo = searchParams.get('redirectTo')
-      let finalRedirect = '/'
-      
-      if (redirectTo) {
-        finalRedirect = redirectTo
-      } else if (userRole === 'advertiser') {
-        finalRedirect = '/advertiser/dashboard'
-      } else if (userRole === 'publisher') {
-        finalRedirect = '/publisher/dashboard'
+      // Redirect based on role after successful registration
+      if (formData.role === 'advertiser') {
+        router.push('/auth/login?message=Check your email to confirm your account. You will be redirected to the advertiser dashboard.')
+      } else {
+        router.push('/auth/login?message=Check your email to confirm your account. You will be redirected to the publisher dashboard.')
       }
-      
-      router.push(finalRedirect)
     } catch (err) {
       setError("An unexpected error occurred. Please try again.")
       setIsLoading(false)
     }
   }
 
-  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+  const handleOAuthSignup = async (provider: 'google' | 'github') => {
     try {
       setError("")
       const { error } = await signInWithOAuth(provider)
@@ -79,7 +87,7 @@ function LoginForm() {
       }
       // OAuth redirect happens automatically
     } catch (err) {
-      setError("Failed to initiate OAuth login. Please try again.")
+      setError("Failed to initiate OAuth signup. Please try again.")
     }
   }
 
@@ -87,6 +95,13 @@ function LoginForm() {
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
+    }))
+  }
+
+  const handleRoleChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      role: value,
     }))
   }
 
@@ -101,21 +116,16 @@ function LoginForm() {
             </div>
             <span className="text-2xl font-bold text-slate-900">Click Optima</span>
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Welcome back</h1>
-          <p className="text-slate-600">Sign in to your account to continue</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Create your account</h1>
+          <p className="text-slate-600">Join thousands of publishers and advertisers</p>
         </div>
 
         <Card className="border-0 shadow-xl">
           <CardHeader className="space-y-1 pb-6">
-            <CardTitle className="text-xl text-center">Sign In</CardTitle>
-            <CardDescription className="text-center">Enter your credentials to access your account</CardDescription>
+            <CardTitle className="text-xl text-center">Sign Up</CardTitle>
+            <CardDescription className="text-center">Create your account to get started</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {message && (
-              <Alert className="border-green-200 bg-green-50">
-                <AlertDescription className="text-green-700">{message}</AlertDescription>
-              </Alert>
-            )}
             {error && (
               <Alert className="border-red-200 bg-red-50">
                 <AlertDescription className="text-red-700">{error}</AlertDescription>
@@ -152,7 +162,7 @@ function LoginForm() {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
+                    placeholder="Create a password"
                     value={formData.password}
                     onChange={handleInputChange}
                     className="pl-10 pr-10 h-12 border-slate-200 focus:border-teal-500 focus:ring-teal-500"
@@ -168,20 +178,64 @@ function LoginForm() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <input
-                    id="remember"
-                    type="checkbox"
-                    className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-slate-700 font-medium">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm your password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="pl-10 pr-10 h-12 border-slate-200 focus:border-teal-500 focus:ring-teal-500"
+                    required
                   />
-                  <Label htmlFor="remember" className="text-sm text-slate-600">
-                    Remember me
-                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
-                <Link href="/auth/forgot-password" className="text-sm text-teal-600 hover:text-teal-700 font-medium">
-                  Forgot password?
-                </Link>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-slate-700 font-medium">I am a...</Label>
+                <RadioGroup value={formData.role} onValueChange={handleRoleChange} className="space-y-3">
+                  <div className="flex items-start space-x-3 p-4 border border-slate-200 rounded-lg hover:border-teal-300 transition-colors">
+                    <RadioGroupItem value="advertiser" id="advertiser" className="mt-1" />
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <Target className="w-4 h-4 text-teal-600" />
+                        <Label htmlFor="advertiser" className="font-medium text-slate-900 cursor-pointer">
+                          Advertiser
+                        </Label>
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        I want to buy link placements and guest post opportunities to improve my SEO.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 p-4 border border-slate-200 rounded-lg hover:border-teal-300 transition-colors">
+                    <RadioGroupItem value="publisher" id="publisher" className="mt-1" />
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <Globe className="w-4 h-4 text-teal-600" />
+                        <Label htmlFor="publisher" className="font-medium text-slate-900 cursor-pointer">
+                          Publisher
+                        </Label>
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        I want to monetize my website by selling link placements and guest post opportunities.
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
               </div>
 
               <Button
@@ -189,7 +243,7 @@ function LoginForm() {
                 disabled={isLoading}
                 className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white font-medium"
               >
-                {isLoading ? "Signing in..." : "Sign In"}
+                {isLoading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
 
@@ -206,7 +260,7 @@ function LoginForm() {
               <Button 
                 variant="outline" 
                 className="h-12 border-slate-200 hover:bg-slate-50 bg-transparent"
-                onClick={() => handleOAuthLogin('google')}
+                onClick={() => handleOAuthSignup('google')}
                 type="button"
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -232,7 +286,7 @@ function LoginForm() {
               <Button 
                 variant="outline" 
                 className="h-12 border-slate-200 hover:bg-slate-50 bg-transparent"
-                onClick={() => handleOAuthLogin('github')}
+                onClick={() => handleOAuthSignup('github')}
                 type="button"
               >
                 <Github className="w-5 h-5 mr-2" />
@@ -242,9 +296,9 @@ function LoginForm() {
 
             <div className="text-center">
               <p className="text-sm text-slate-600">
-                Don't have an account?{" "}
-                <Link href="/auth/register" className="text-teal-600 hover:text-teal-700 font-medium">
-                  Sign up
+                Already have an account?{" "}
+                <Link href="/auth/login" className="text-teal-600 hover:text-teal-700 font-medium">
+                  Sign in
                 </Link>
               </p>
             </div>
@@ -253,7 +307,7 @@ function LoginForm() {
 
         <div className="text-center mt-8">
           <p className="text-xs text-slate-500">
-            By signing in, you agree to our{" "}
+            By creating an account, you agree to our{" "}
             <Link href="/terms" className="text-teal-600 hover:text-teal-700">
               Terms of Service
             </Link>{" "}
@@ -265,27 +319,5 @@ function LoginForm() {
         </div>
       </div>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-0 shadow-xl">
-          <CardHeader className="space-y-1 pb-6">
-            <Skeleton className="h-6 w-3/4 mx-auto" />
-            <Skeleton className="h-4 w-1/2 mx-auto" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </CardContent>
-        </Card>
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
   )
 }

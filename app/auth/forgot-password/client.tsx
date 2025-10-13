@@ -11,6 +11,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LinkIcon, Mail, ArrowLeft, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: 'Forgot Password | Click Optima',
+  description: 'Reset your password for your Click Optima account.',
+}
 
 export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)

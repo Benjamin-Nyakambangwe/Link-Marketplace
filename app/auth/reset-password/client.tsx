@@ -12,6 +12,12 @@ import { Eye, EyeOff, LinkIcon, Lock } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: 'Reset Password | Click Optima',
+  description: 'Reset your password for your Click Optima account.',
+}
 
 function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false)

@@ -15,6 +15,12 @@ import { Eye, EyeOff, LinkIcon, Mail, Lock, Github } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
 import { createClient } from '@/lib/supabase/client'
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: 'Login | Click Optima',
+  description: 'Sign in to your Click Optima account to access your dashboard.',
+}
 
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)

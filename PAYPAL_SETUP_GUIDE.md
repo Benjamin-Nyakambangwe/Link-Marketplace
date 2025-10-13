@@ -88,7 +88,7 @@ This creates:
 
 #### Create App (if needed):
 1. Click **Create App**
-2. App Name: "Link Marketplace"
+2. App Name: "Click Optima"
 3. App Type: **Merchant**
 4. Click **Create App**
 

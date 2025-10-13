@@ -227,7 +227,7 @@ async function createPayPalPayout(params: {
     const payoutPayload = {
       sender_batch_header: {
         sender_batch_id: batchId,
-        email_subject: 'You received a payment from Link Marketplace',
+        email_subject: 'You received a payment from Click Optima',
         email_message: `Payment for order: ${orderTitle}. Thank you for your work!`
       },
       items: [

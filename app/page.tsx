@@ -16,6 +16,34 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: 'Click Optima | The Premier Link Building Marketplace',
+  description: 'Connect with publishers and advertisers in a secure, transparent marketplace for high-quality link placements and guest posting opportunities.',
+  keywords: ['link building', 'guest posting', 'SEO', 'backlinks', 'digital marketing', 'publishers', 'advertisers'],
+  openGraph: {
+    title: 'Click Optima | The Premier Link Building Marketplace',
+    description: 'Connect with publishers and advertisers in a secure, transparent marketplace for high-quality link placements and guest posting opportunities.',
+    url: 'https://click-optima.com', // replace with your actual domain
+    siteName: 'Click Optima',
+    images: [
+      {
+        url: 'https://click-optima.com/og-image.png', // replace with your actual og image url
+        width: 1200,
+        height: 630,
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Click Optima | The Premier Link Building Marketplace',
+    description: 'Connect with publishers and advertisers in a secure, transparent marketplace for high-quality link placements and guest posting opportunities.',
+    images: ['https://click-optima.com/twitter-image.png'], // replace with your actual twitter image url
+  },
+}
 
 export default function LandingPage() {
   return (
@@ -27,7 +55,7 @@ export default function LandingPage() {
             <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
               <LinkIcon className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-bold text-slate-900">LinkMarket</span>
+            <span className="text-xl font-bold text-slate-900">Click Optima</span>
           </div>
           <nav className="hidden md:flex items-center space-x-8">
             <Link href="#features" className="text-slate-600 hover:text-teal-600 transition-colors">
@@ -39,9 +67,9 @@ export default function LandingPage() {
             <Link href="#testimonials" className="text-slate-600 hover:text-teal-600 transition-colors">
               Testimonials
             </Link>
-            <Link href="#pricing" className="text-slate-600 hover:text-teal-600 transition-colors">
+            {/* <Link href="#pricing" className="text-slate-600 hover:text-teal-600 transition-colors">
               Pricing
-            </Link>
+            </Link> */}
           </nav>
           <div className="flex items-center space-x-3">
             <Link href="/auth/login">
@@ -107,7 +135,7 @@ export default function LandingPage() {
             <div className="relative">
               <div className="bg-gradient-to-br from-teal-100 to-slate-100 rounded-2xl p-8 shadow-2xl">
                 <Image
-                  src="/placeholder.svg?height=400&width=500"
+                  src="/hero.avif?height=400&width=600"
                   alt="Platform Dashboard Preview"
                   width={500}
                   height={400}
@@ -313,7 +341,7 @@ export default function LandingPage() {
             <Badge className="bg-teal-100 text-teal-700">Testimonials</Badge>
             <h2 className="text-3xl lg:text-4xl font-bold text-slate-900">Trusted by Industry Leaders</h2>
             <p className="text-xl text-slate-600">
-              See what our users have to say about their experience with LinkMarket.
+              See what our users have to say about their experience with Click Optima.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -325,7 +353,7 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <p className="text-slate-600 mb-4">
-                  "LinkMarket has revolutionized our link building strategy. The quality of publishers and the ease of
+                  "Click Optima has revolutionized our link building strategy. The quality of publishers and the ease of
                   use is unmatched."
                 </p>
                 <div className="flex items-center space-x-3">
@@ -394,7 +422,7 @@ export default function LandingPage() {
             <div className="max-w-3xl mx-auto space-y-6">
               <h2 className="text-3xl lg:text-4xl font-bold">Ready to Transform Your Link Building Strategy?</h2>
               <p className="text-xl text-teal-100">
-                Join thousands of publishers and advertisers who trust LinkMarket for their link building needs.
+                Join thousands of publishers and advertisers who trust Click Optima for their link building needs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/auth/register">
@@ -426,7 +454,7 @@ export default function LandingPage() {
                 <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
                   <LinkIcon className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-xl font-bold">LinkMarket</span>
+                <span className="text-xl font-bold">Click Optima</span>
               </div>
               <p className="text-slate-400">
                 The premier marketplace connecting publishers and advertisers for quality link building opportunities.
@@ -499,7 +527,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-slate-800 mt-12 pt-8 text-center text-slate-400">
-            <p>&copy; {new Date().getFullYear()} LinkMarket. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Click Optima. All rights reserved.</p>
           </div>
         </div>
       </footer>

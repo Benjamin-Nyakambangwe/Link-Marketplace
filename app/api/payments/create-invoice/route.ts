@@ -235,7 +235,7 @@ async function createPayPalInvoice(params: {
       },
       invoicer: {
         name: {
-          business_name: process.env.PAYPAL_BUSINESS_NAME || 'Link Marketplace'
+          business_name: process.env.PAYPAL_BUSINESS_NAME || 'Click Optima'
         },
         email_address: process.env.PAYPAL_BUSINESS_EMAIL,
         website: process.env.NEXT_PUBLIC_APP_URL || 'https://linkmarketplace.com'

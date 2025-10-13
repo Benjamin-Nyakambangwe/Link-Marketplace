@@ -92,7 +92,7 @@ export default function AdvertiserLayout({ children }: AdvertiserLayoutProps) {
               <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">LM</span>
               </div>
-              <span className="font-semibold text-gray-900">LinkMarket</span>
+              <span className="font-semibold text-gray-900">Click Optima</span>
             </Link>
             <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
               <X className="h-5 w-5" />
@@ -127,7 +127,7 @@ export default function AdvertiserLayout({ children }: AdvertiserLayoutProps) {
               <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">LM</span>
               </div>
-              <span className="font-semibold text-gray-900">LinkMarket</span>
+              <span className="font-semibold text-gray-900">Click Optima</span>
             </Link>
           </div>
           <nav className="flex-1 px-4 py-4 space-y-2">

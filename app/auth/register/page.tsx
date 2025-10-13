@@ -108,7 +108,7 @@ export default function RegisterPage() {
             <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
               <LinkIcon className="w-5 h-5 text-white" />
             </div>
-            <span className="text-2xl font-bold text-slate-900">LinkMarket</span>
+            <span className="text-2xl font-bold text-slate-900">Click Optima</span>
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Create your account</h1>
           <p className="text-slate-600">Join thousands of publishers and advertisers</p>
