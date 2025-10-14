@@ -17,6 +17,8 @@ import {
 import Link from "next/link"
 import Image from "next/image"
 import { Metadata } from "next"
+import { Header } from "@/components/layout/header"
+import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
   title: 'Click Optima | The Premier Link Building Marketplace',
@@ -48,41 +50,7 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
-              <LinkIcon className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-bold text-slate-900">Click Optima</span>
-          </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link href="#features" className="text-slate-600 hover:text-teal-600 transition-colors">
-              Features
-            </Link>
-            <Link href="#how-it-works" className="text-slate-600 hover:text-teal-600 transition-colors">
-              How It Works
-            </Link>
-            <Link href="#testimonials" className="text-slate-600 hover:text-teal-600 transition-colors">
-              Testimonials
-            </Link>
-            {/* <Link href="#pricing" className="text-slate-600 hover:text-teal-600 transition-colors">
-              Pricing
-            </Link> */}
-          </nav>
-          <div className="flex items-center space-x-3">
-            <Link href="/auth/login">
-              <Button variant="ghost" className="text-slate-600 hover:text-teal-600">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/auth/register">
-              <Button className="bg-teal-600 hover:bg-teal-700 text-white">Get Started</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section */}
       <section className="py-20 lg:py-32">
@@ -445,92 +413,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-white py-16">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-teal-600 to-teal-700 rounded-lg flex items-center justify-center">
-                  <LinkIcon className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-xl font-bold">Click Optima</span>
-              </div>
-              <p className="text-slate-400">
-                The premier marketplace connecting publishers and advertisers for quality link building opportunities.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <h3 className="font-semibold">For Publishers</h3>
-              <ul className="space-y-2 text-slate-400">
-                <li>
-                  <Link href="/publisher/websites" className="hover:text-white transition-colors">
-                    List Your Website
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/publisher/dashboard" className="hover:text-white transition-colors">
-                    Publisher Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/publisher/payouts" className="hover:text-white transition-colors">
-                    Payout History
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div className="space-y-4">
-              <h3 className="font-semibold">For Advertisers</h3>
-              <ul className="space-y-2 text-slate-400">
-                <li>
-                  <Link href="/advertiser/listings" className="hover:text-white transition-colors">
-                    Browse Listings
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/advertiser/dashboard" className="hover:text-white transition-colors">
-                    Advertiser Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/advertiser/orders" className="hover:text-white transition-colors">
-                    My Orders
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div className="space-y-4">
-              <h3 className="font-semibold">Support</h3>
-              <ul className="space-y-2 text-slate-400">
-                <li>
-                  <Link href="/about" className="hover:text-white transition-colors">
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="hover:text-white transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/privacy" className="hover:text-white transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/terms" className="hover:text-white transition-colors">
-                    Terms of Service
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-slate-800 mt-12 pt-8 text-center text-slate-400">
-            <p>&copy; {new Date().getFullYear()} Click Optima. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
