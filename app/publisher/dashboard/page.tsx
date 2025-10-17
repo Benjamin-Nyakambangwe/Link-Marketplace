@@ -70,13 +70,13 @@ export default function PublisherDashboard() {
   const [recentOrders, setRecentOrders] = useState<any[]>([])
   const [websitePerformance, setWebsitePerformance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [userName, setUserName] = useState("John")
+  const [userName, setUserName] = useState("")
 
   useEffect(() => {
     if (user) {
       fetchDashboardData()
       // @ts-ignore
-      setUserName(user.user_metadata?.full_name || "John")
+      setUserName(user.user_metadata?.full_name || "Publisher")
     }
   }, [user])
 
@@ -224,7 +224,7 @@ export default function PublisherDashboard() {
       <div className="space-y-6">
         {/* Welcome Message */}
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Welcome back, {userName}!</h1>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2"> {userName}!</h1>
           <p className="text-slate-600">Here's what's happening with your websites and earnings.</p>
         </div>
 
