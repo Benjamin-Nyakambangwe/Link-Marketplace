@@ -102,21 +102,26 @@ export default function AdvertiserDashboard() {
 
       if (ordersError) throw ordersError
 
-      const activeOrders = ordersData.filter(
+      const orders = ordersData || []
+      const activeOrders = orders.filter(
         (o) => !["completed", "paid", "cancelled"].includes(o.status)
       ).length
-      const linksPlaced = ordersData.filter((o) => ["completed", "paid"].includes(o.status)).length
+      const linksPlaced = orders.filter((o) => ["completed", "paid"].includes(o.status)).length
 
-      // Fetch payments for stats
-      const { data: paymentsData, error: paymentsError } = await supabase
-        .from("payments")
-        .select("total_amount, invoice_status")
-        .in(
-          "order_id",
-          ordersData.map((o) => o.id)
-        )
+      // Fetch payments for stats (only if there are orders)
+      let paymentsData: any[] = []
+      if (orders.length > 0) {
+        const { data, error: paymentsError } = await supabase
+          .from("payments")
+          .select("total_amount, invoice_status")
+          .in(
+            "order_id",
+            orders.map((o) => o.id)
+          )
 
-      if (paymentsError) throw paymentsError
+        if (paymentsError) throw paymentsError
+        paymentsData = data || []
+      }
 
       const totalSpent = paymentsData
         .filter((p) => p.invoice_status === "PAID")
@@ -175,17 +180,23 @@ export default function AdvertiserDashboard() {
       setRecentOrders(formattedRecentOrders)
 
       // Fetch top performing websites
-      const completedOrders = ordersData.filter((o) => ["completed", "paid"].includes(o.status))
-      const { data: websitesData, error: websitesError } = await supabase
-        .from("websites")
-        .select("id, url, primary_niche")
-        .in(
-          "id",
-          // @ts-ignore
-          [...new Set(completedOrders.map((o) => o.website_id))]
-        )
+      const completedOrders = orders.filter((o) => ["completed", "paid"].includes(o.status))
+      
+      // Only fetch website data if there are completed orders
+      let websitesData: any[] = []
+      if (completedOrders.length > 0) {
+        const { data, error: websitesError } = await supabase
+          .from("websites")
+          .select("id, url, primary_niche")
+          .in(
+            "id",
+            // @ts-ignore
+            [...new Set(completedOrders.map((o) => o.website_id))]
+          )
 
-      if (websitesError) throw websitesError
+        if (websitesError) throw websitesError
+        websitesData = data || []
+      }
 
       const websiteOrderCounts = completedOrders.reduce((acc, order) => {
         // @ts-ignore
@@ -193,7 +204,7 @@ export default function AdvertiserDashboard() {
         return acc
       }, {})
 
-      const topWebsites = (websitesData || [])
+      const topWebsites = websitesData
         // @ts-ignore
         .sort((a, b) => websiteOrderCounts[b.id] - websiteOrderCounts[a.id])
         .slice(0, 3)
@@ -206,8 +217,8 @@ export default function AdvertiserDashboard() {
           category: w.primary_niche,
         }))
       setTopPerformingWebsites(topWebsites)
-    } catch (error) {
-      console.error("Failed to fetch advertiser dashboard data:", error)
+    } catch (error: any) {
+      console.error("Failed to fetch advertiser dashboard data:", error?.message || error)
     } finally {
       setLoading(false)
     }
@@ -232,9 +243,9 @@ export default function AdvertiserDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <div className="text-2xl font-bold text-gray-900">
                       {loading ? <Skeleton className="h-8 w-24 mt-1" /> : stat.value}
-                    </p>
+                    </div>
                   </div>
                   <div className="h-12 w-12 bg-teal-100 rounded-lg flex items-center justify-center">
                     <stat.icon className="h-6 w-6 text-teal-600" />

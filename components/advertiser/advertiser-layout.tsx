@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -55,6 +55,17 @@ export default function AdvertiserLayout({ children }: AdvertiserLayoutProps) {
     router.push('/')
   }
 
+  // Handle authentication and authorization redirects
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.push('/auth/login')
+      } else if (user.user_role !== 'advertiser') {
+        router.push('/publisher/dashboard')
+      }
+    }
+  }, [user, loading, router])
+
   // Show loading or redirect if not authenticated
   if (loading) {
     return (
@@ -67,14 +78,7 @@ export default function AdvertiserLayout({ children }: AdvertiserLayoutProps) {
     )
   }
 
-  if (!user) {
-    router.push('/auth/login')
-    return null
-  }
-
-  // Check if user has the right role
-  if (user.user_role !== 'advertiser') {
-    router.push('/publisher/dashboard')
+  if (!user || user.user_role !== 'advertiser') {
     return null
   }
 

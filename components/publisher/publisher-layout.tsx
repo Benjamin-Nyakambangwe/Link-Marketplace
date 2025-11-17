@@ -27,7 +27,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 
 interface PublisherLayoutProps {
@@ -54,6 +54,17 @@ export default function PublisherLayout({ children }: PublisherLayoutProps) {
     router.push('/')
   }
 
+  // Handle authentication and authorization redirects
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.push('/auth/login')
+      } else if (user.user_role !== 'publisher') {
+        router.push('/advertiser/dashboard')
+      }
+    }
+  }, [user, loading, router])
+
   // Show loading or redirect if not authenticated
   if (loading) {
     return (
@@ -66,14 +77,7 @@ export default function PublisherLayout({ children }: PublisherLayoutProps) {
     )
   }
 
-  if (!user) {
-    router.push('/auth/login')
-    return null
-  }
-
-  // Check if user has the right role
-  if (user.user_role !== 'publisher') {
-    router.push('/advertiser/dashboard')
+  if (!user || user.user_role !== 'publisher') {
     return null
   }
 
